@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PLAN_PRICING } from "@/lib/constants";
 import { badRequest, parseJson, requireSession } from "@/lib/api";
 import { stripe } from "@/lib/stripe";
+import { getSubscription } from "@/lib/store";
 
 const schema = z.object({
   plan: z.enum(["monthly", "yearly"]),
@@ -14,16 +15,22 @@ export async function POST(request: NextRequest) {
     return session;
   }
 
-  if (!stripe) {
-    return badRequest("Stripe is not configured", 500);
-  }
-
   try {
     const body = schema.parse(await parseJson(request));
+    const subscription = getSubscription(session.id);
+
+    if (!subscription) {
+      return badRequest("Subscription profile not found", 404);
+    }
+
+    if (!stripe) {
+      return badRequest("Stripe is not configured. Set STRIPE_SECRET_KEY, NEXT_PUBLIC_APP_URL, and STRIPE_WEBHOOK_SECRET.", 500);
+    }
 
     const checkout = await stripe.checkout.sessions.create({
       mode: "subscription",
-      customer_email: session.email,
+      ...(subscription.stripeCustomerId ? { customer: subscription.stripeCustomerId } : { customer_email: session.email }),
+      client_reference_id: session.id,
       line_items: [
         {
           price_data: {
@@ -39,13 +46,23 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard?payment=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard?payment=cancelled`,
       metadata: {
         userId: session.id,
         plan: body.plan,
       },
+      subscription_data: {
+        metadata: {
+          userId: session.id,
+          plan: body.plan,
+        },
+      },
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard?payment=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard?payment=cancelled`,
     });
+
+    if (!checkout.url) {
+      return badRequest("Unable to create Stripe checkout session", 500);
+    }
 
     return NextResponse.json({ ok: true, data: { url: checkout.url } }, { status: 201 });
   } catch (error) {

@@ -23,14 +23,15 @@ export default function LoginPage() {
       return;
     }
 
-    window.location.href = "/dashboard";
+    const target = result.data?.role === "admin" ? "/admin" : "/dashboard";
+    window.location.href = target;
   }
 
   return (
     <div className="mx-auto w-full max-w-md px-4 py-14">
       <div className="rounded-3xl border border-white/15 bg-white/[0.05] p-7">
         <h1 className="font-display text-3xl text-white">Welcome back</h1>
-        <p className="mt-2 text-sm text-slate-200/80">Use your subscriber credentials to access your dashboard.</p>
+        <p className="mt-2 text-sm text-slate-200/80">Sign in with subscriber or admin credentials.</p>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <label className="block text-sm">
             <span className="text-slate-200">Email</span>
@@ -67,3 +68,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

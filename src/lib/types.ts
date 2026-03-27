@@ -27,6 +27,11 @@ export interface Subscription {
   renewalDate: string;
   charityId: string;
   charityPercent: number;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  cancelAtPeriodEnd?: boolean;
+  lastPaymentAt?: string;
+  lastPaymentStatus?: "paid" | "pending" | "failed";
   createdAt: string;
 }
 
@@ -83,3 +88,5 @@ export interface SessionUser {
   email: string;
   role: UserRole;
 }
+
+

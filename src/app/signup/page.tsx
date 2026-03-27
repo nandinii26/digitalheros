@@ -56,10 +56,10 @@ export default function SignupPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-12">
-      <div className="rounded-3xl border border-white/15 bg-white/[0.05] p-7 md:p-9">
+      <div className="rounded-3xl border border-white/15 bg-white/5 p-7 md:p-9">
         <h1 className="font-display text-3xl text-white">Become a subscriber</h1>
         <p className="mt-2 text-sm text-slate-200/80">
-          Choose monthly or yearly billing, then direct your contribution to a charity.
+          Create your account, then complete Stripe checkout from your dashboard to activate your subscription.
         </p>
 
         <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -139,10 +139,12 @@ export default function SignupPage() {
             type="submit"
             className="md:col-span-2 rounded-full bg-cyan-300 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-900 hover:bg-cyan-200"
           >
-            Create Account and Subscribe
+            Create Account
           </button>
         </form>
       </div>
     </div>
   );
 }
+
+

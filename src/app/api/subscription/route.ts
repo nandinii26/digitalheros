@@ -5,7 +5,6 @@ import { getSubscription, updateSubscription } from "@/lib/store";
 
 const schema = z.object({
   plan: z.enum(["monthly", "yearly"]).optional(),
-  status: z.enum(["active", "inactive", "lapsed", "cancelled"]).optional(),
   charityId: z.string().optional(),
   charityPercent: z.number().min(10).max(100).optional(),
 });

@@ -52,6 +52,14 @@ export default function AdminPage() {
     const response = await fetch("/api/admin/stats");
     const result = await response.json();
     if (!result.ok) {
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (response.status === 403) {
+        window.location.href = "/dashboard";
+        return;
+      }
       setError(result.error || "Unauthorized");
       return;
     }
@@ -280,3 +288,6 @@ export default function AdminPage() {
     </div>
   );
 }
+
+
+

@@ -38,6 +38,50 @@ function nextRenewal(plan: PlanType): string {
   return date.toISOString();
 }
 
+function renewalFromUnixTime(unixTime?: number): string | undefined {
+  if (!unixTime) {
+    return undefined;
+  }
+  return new Date(unixTime * 1000).toISOString();
+}
+
+function planFromStripeInterval(interval?: string | null): PlanType | undefined {
+  if (interval === "month") {
+    return "monthly";
+  }
+  if (interval === "year") {
+    return "yearly";
+  }
+  return undefined;
+}
+
+function mapStripeStatus(status: string): Subscription["status"] {
+  if (status === "active" || status === "trialing") {
+    return "active";
+  }
+  if (status === "past_due" || status === "incomplete" || status === "incomplete_expired" || status === "unpaid") {
+    return "lapsed";
+  }
+  if (status === "canceled") {
+    return "cancelled";
+  }
+  return "inactive";
+}
+
+function reconcileSubscriptionLifecycle(subscription: Subscription): Subscription {
+  if (subscription.status !== "active") {
+    return subscription;
+  }
+
+  const renewalTime = Date.parse(subscription.renewalDate);
+  if (!Number.isNaN(renewalTime) && renewalTime < Date.now()) {
+    subscription.status = "lapsed";
+    subscription.lastPaymentStatus = "pending";
+  }
+
+  return subscription;
+}
+
 function uuid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 11)}`;
 }
@@ -218,14 +262,15 @@ export function signupUser(params: {
   };
   db.users.push(user);
 
-  db.subscriptions.push({
+    db.subscriptions.push({
     id: uuid("sub"),
     userId: user.id,
     plan: params.plan,
-    status: "active",
-    renewalDate: nextRenewal(params.plan),
+    status: "inactive",
+    renewalDate: nowIso(),
     charityId: params.charityId,
     charityPercent: params.charityPercent,
+    lastPaymentStatus: "pending",
     createdAt: nowIso(),
   });
 
@@ -252,15 +297,24 @@ export function loginUser(email: string, password: string): SessionUser {
 }
 
 export function getSubscription(userId: string): Subscription | undefined {
-  return db.subscriptions.find((subscription) => subscription.userId === userId);
+  const subscription = db.subscriptions.find((entry) => entry.userId === userId);
+  if (!subscription) {
+    return undefined;
+  }
+  return reconcileSubscriptionLifecycle(subscription);
 }
 
 export function updateSubscription(
   userId: string,
-  updates: Partial<Pick<Subscription, "plan" | "status" | "charityId" | "charityPercent">>,
+  updates: Partial<
+    Pick<
+      Subscription,
+      "plan" | "status" | "charityId" | "charityPercent" | "renewalDate" | "stripeCustomerId" | "stripeSubscriptionId" | "cancelAtPeriodEnd" | "lastPaymentAt" | "lastPaymentStatus"
+    >
+  >,
 ): Subscription {
-  const sub = db.subscriptions.find((entry) => entry.userId === userId);
-  if (!sub) {
+  const subscription = db.subscriptions.find((entry) => entry.userId === userId);
+  if (!subscription) {
     throw new Error("Subscription not found");
   }
 
@@ -268,13 +322,69 @@ export function updateSubscription(
     throw new Error(`Charity contribution must be at least ${MIN_CHARITY_PERCENT}%`);
   }
 
-  Object.assign(sub, updates);
+  Object.assign(subscription, updates);
 
-  if (updates.plan) {
-    sub.renewalDate = nextRenewal(updates.plan);
+  if (updates.plan && !updates.renewalDate && subscription.status === "active") {
+    subscription.renewalDate = nextRenewal(updates.plan);
   }
 
-  return sub;
+  return reconcileSubscriptionLifecycle(subscription);
+}
+
+export function activateSubscriptionFromCheckout(params: {
+  userId: string;
+  plan: PlanType;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  renewalDate?: string;
+}) {
+  const renewalDate = params.renewalDate || nextRenewal(params.plan);
+  return updateSubscription(params.userId, {
+    plan: params.plan,
+    status: "active",
+    renewalDate,
+    stripeCustomerId: params.stripeCustomerId,
+    stripeSubscriptionId: params.stripeSubscriptionId,
+    cancelAtPeriodEnd: false,
+    lastPaymentAt: nowIso(),
+    lastPaymentStatus: "paid",
+  });
+}
+
+export function syncSubscriptionFromStripe(params: {
+  stripeSubscriptionId: string;
+  stripeCustomerId?: string;
+  stripeStatus: string;
+  interval?: string | null;
+  currentPeriodEnd?: number;
+  cancelAtPeriodEnd?: boolean;
+  userId?: string;
+}) {
+  let subscription = db.subscriptions.find((entry) => entry.stripeSubscriptionId === params.stripeSubscriptionId);
+
+  if (!subscription && params.stripeCustomerId) {
+    subscription = db.subscriptions.find((entry) => entry.stripeCustomerId === params.stripeCustomerId);
+  }
+
+  if (!subscription && params.userId) {
+    subscription = db.subscriptions.find((entry) => entry.userId === params.userId);
+  }
+
+  if (!subscription) {
+    throw new Error("Subscription not found for Stripe event");
+  }
+
+  const plan = planFromStripeInterval(params.interval) || subscription.plan;
+  return updateSubscription(subscription.userId, {
+    plan,
+    status: mapStripeStatus(params.stripeStatus),
+    renewalDate: renewalFromUnixTime(params.currentPeriodEnd) || subscription.renewalDate,
+    stripeCustomerId: params.stripeCustomerId || subscription.stripeCustomerId,
+    stripeSubscriptionId: params.stripeSubscriptionId,
+    cancelAtPeriodEnd: Boolean(params.cancelAtPeriodEnd),
+    lastPaymentAt: nowIso(),
+    lastPaymentStatus: params.stripeStatus === "active" || params.stripeStatus === "trialing" ? "paid" : "pending",
+  });
 }
 
 export function getUserScores(userId: string): ScoreEntry[] {
@@ -577,9 +687,15 @@ export function updateUserProfile(userId: string, updates: Partial<Pick<User, "n
 }
 
 export function getAllSubscriptions() {
-  return db.subscriptions;
+  return db.subscriptions.map((subscription) => reconcileSubscriptionLifecycle(subscription));
 }
 
 export function getAllScores() {
   return db.scores;
 }
+
+
+
+
+
+
