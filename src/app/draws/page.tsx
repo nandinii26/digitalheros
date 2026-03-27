@@ -20,7 +20,13 @@ export default function DrawsPage() {
   useEffect(() => {
     fetch("/api/draws")
       .then((response) => response.json())
-      .then((result) => setDraws(result.data.draws || []));
+      .then((result) => {
+        if (!result.ok) {
+          setDraws([]);
+          return;
+        }
+        setDraws(result.data.draws || []);
+      });
   }, []);
 
   return (
@@ -30,15 +36,26 @@ export default function DrawsPage() {
 
       <div className="mt-6 space-y-3">
         {draws.length === 0 ? (
-          <div className="rounded-3xl border border-white/15 bg-white/[0.05] p-5 text-sm text-slate-200/85">
+          <div className="rounded-3xl border border-white/15 bg-white/5 p-5 text-sm text-slate-200/85">
             No published draws yet. Admin can run simulation and publish from the admin panel.
           </div>
         ) : (
           draws.map((draw) => (
-            <article key={draw.id} className="rounded-3xl border border-white/15 bg-white/[0.05] p-5">
+            <article key={draw.id} className="rounded-3xl border border-white/15 bg-white/5 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-display text-2xl text-cyan-100">{draw.monthKey}</h2>
-                <span className="text-xs uppercase tracking-[0.14em] text-cyan-200">{draw.mode} mode</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase tracking-[0.14em] text-cyan-200">{draw.mode} mode</span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${
+                      draw.published
+                        ? "border-emerald-300/40 text-emerald-200"
+                        : "border-amber-300/40 text-amber-200"
+                    }`}
+                  >
+                    {draw.published ? "Published" : "Simulation"}
+                  </span>
+                </div>
               </div>
               <p className="mt-3 text-sm text-slate-100">Numbers: {draw.numbers.join(" · ")}</p>
               <p className="mt-2 text-xs text-slate-300">

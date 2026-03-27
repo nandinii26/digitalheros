@@ -12,6 +12,17 @@ interface AdminStats {
   };
   charityContributionTotals: Array<{ charityId: string; charityName: string; total: number }>;
   drawStats: { published: number; simulations: number };
+  draws: Array<{
+    id: string;
+    monthKey: string;
+    mode: "random" | "algorithmic";
+    numbers: number[];
+    published: boolean;
+    isSimulation: boolean;
+    prizePoolTotal: number;
+    jackpotCarryIn: number;
+    jackpotCarryOut: number;
+  }>;
   winners: Array<{ id: string; userId: string; tier: number; amount: number; status: string; payoutStatus: string }>;
 }
 
@@ -187,6 +198,34 @@ export default function AdminPage() {
                   <button onClick={() => reviewWinner(winner.id, "rejected")} className="rounded-full border border-white/30 px-3 py-1">Reject</button>
                   <button onClick={() => markPaid(winner.id)} className="rounded-full border border-white/30 px-3 py-1">Mark Paid</button>
                 </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
+
+      <Card title="Recent Draw Results" className="md:col-span-2">
+        <div className="space-y-2 text-xs">
+          {stats.draws.length === 0 ? (
+            <p>No draw runs yet.</p>
+          ) : (
+            stats.draws.slice(0, 8).map((draw) => (
+              <div key={draw.id} className="rounded-xl border border-white/15 p-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p>
+                    {draw.monthKey} | {draw.mode} | Numbers: {draw.numbers.join(" ")}
+                  </p>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${
+                      draw.published ? "border-emerald-300/40 text-emerald-200" : "border-amber-300/40 text-amber-200"
+                    }`}
+                  >
+                    {draw.published ? "Published" : "Simulation"}
+                  </span>
+                </div>
+                <p className="mt-1 text-slate-300">
+                  Pool ${draw.prizePoolTotal.toFixed(2)} | Carry in ${draw.jackpotCarryIn.toFixed(2)} | Carry out ${draw.jackpotCarryOut.toFixed(2)}
+                </p>
               </div>
             ))
           )}

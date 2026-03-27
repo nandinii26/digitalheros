@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { badRequest, ok, parseJson, requireSession } from "@/lib/api";
+import { getSessionFromCookies } from "@/lib/auth";
 import { listDraws, runDraw } from "@/lib/store";
 
 const schema = z.object({
@@ -9,12 +10,10 @@ const schema = z.object({
 });
 
 export async function GET() {
-  const session = await requireSession();
-  if (session instanceof NextResponse) {
-    return session;
-  }
+  const session = await getSessionFromCookies();
+  const includeSimulations = session?.role === "admin";
 
-  return ok({ draws: listDraws() });
+  return ok({ draws: listDraws({ includeSimulations }) });
 }
 
 export async function POST(request: NextRequest) {

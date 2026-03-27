@@ -452,8 +452,10 @@ export function runDraw(params: { mode: DrawMode; simulate: boolean; userId: str
     draw.jackpotCarryOut = 0;
   }
 
+  // Keep an auditable draw history for both simulation and published runs.
+  db.draws.unshift(draw);
+
   if (!params.simulate) {
-    db.draws.unshift(draw);
     db.winners.unshift(...newWinners);
     db.jackpotRollover = draw.jackpotCarryOut;
   }
@@ -470,8 +472,12 @@ export function runDraw(params: { mode: DrawMode; simulate: boolean; userId: str
   };
 }
 
-export function listDraws() {
-  return db.draws;
+export function listDraws(options?: { includeSimulations?: boolean }) {
+  const includeSimulations = options?.includeSimulations ?? false;
+  if (includeSimulations) {
+    return db.draws;
+  }
+  return db.draws.filter((draw) => draw.published);
 }
 
 export function listWinners(userId?: string): Winner[] {
