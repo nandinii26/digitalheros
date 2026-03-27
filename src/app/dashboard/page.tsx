@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [score, setScore] = useState(30);
   const [scoreDate, setScoreDate] = useState(new Date().toISOString().slice(0, 10));
+  const [editingScoreId, setEditingScoreId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   async function load() {
@@ -48,18 +49,49 @@ export default function DashboardPage() {
     event.preventDefault();
     setMessage(null);
 
+    const isEditing = Boolean(editingScoreId);
     const response = await fetch("/api/scores", {
-      method: "POST",
+      method: isEditing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: score, date: scoreDate }),
+      body: JSON.stringify(
+        isEditing
+          ? { id: editingScoreId, value: score, date: scoreDate }
+          : { value: score, date: scoreDate },
+      ),
     });
     const result = await response.json();
     if (!result.ok) {
       setMessage(result.error || "Failed to save score");
       return;
     }
-    setMessage("Score saved. Rolling top 5 updated.");
+
+    setEditingScoreId(null);
+    setScore(30);
+    setScoreDate(new Date().toISOString().slice(0, 10));
+
+    if (isEditing) {
+      setMessage("Score updated successfully.");
+    } else if (result.data?.replacedOldest) {
+      setMessage("Score saved. Oldest score was removed automatically to keep the latest 5 entries.");
+    } else {
+      setMessage("Score saved.");
+    }
+
     await load();
+  }
+
+  function startEditScore(entry: { id: string; value: number; date: string }) {
+    setEditingScoreId(entry.id);
+    setScore(entry.value);
+    setScoreDate(entry.date);
+    setMessage("Editing selected score.");
+  }
+
+  function cancelEditScore() {
+    setEditingScoreId(null);
+    setScore(30);
+    setScoreDate(new Date().toISOString().slice(0, 10));
+    setMessage("Edit cancelled.");
   }
 
   async function updateCharityContribution(percent: number) {
@@ -148,6 +180,9 @@ export default function DashboardPage() {
 
       <Card title="Score Entry">
         <form onSubmit={saveScore} className="space-y-3">
+          <p className="text-xs text-slate-300">
+            Rules: latest 5 submitted scores are retained; adding a 6th auto-removes the oldest submission. List is shown in reverse chronological order.
+          </p>
           <label className="block">
             <span>Stableford Score (1-45)</span>
             <input
@@ -168,13 +203,34 @@ export default function DashboardPage() {
               className="mt-1 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2"
             />
           </label>
-          <button className="rounded-full bg-cyan-300 px-5 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-900 hover:bg-cyan-200">
-            Save Score
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-full bg-cyan-300 px-5 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-900 hover:bg-cyan-200">
+              {editingScoreId ? "Update Score" : "Save Score"}
+            </button>
+            {editingScoreId ? (
+              <button
+                type="button"
+                onClick={cancelEditScore}
+                className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
+              >
+                Cancel Edit
+              </button>
+            ) : null}
+          </div>
         </form>
-        <div className="mt-4 space-y-1 text-xs text-slate-300">
+        <p className="mt-3 text-[11px] text-slate-400">Showing {data.scores.length}/5 scores</p>
+        <div className="mt-3 space-y-2 text-xs text-slate-300">
           {data.scores.map((entry) => (
-            <p key={entry.id}>{entry.date}: {entry.value}</p>
+            <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 p-2">
+              <p>{entry.date}: {entry.value}</p>
+              <button
+                type="button"
+                onClick={() => startEditScore(entry)}
+                className="rounded-full border border-white/30 px-3 py-1 text-[10px] uppercase tracking-[0.12em]"
+              >
+                Edit
+              </button>
+            </div>
           ))}
         </div>
       </Card>

@@ -278,9 +278,17 @@ export function updateSubscription(
 }
 
 export function getUserScores(userId: string): ScoreEntry[] {
-  return db.scores
+  const latestFiveBySubmission = db.scores
     .filter((score) => score.userId === userId)
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .slice(0, 5);
+
+  return latestFiveBySubmission.sort((a, b) => {
+    if (a.date === b.date) {
+      return a.createdAt < b.createdAt ? 1 : -1;
+    }
+    return a.date < b.date ? 1 : -1;
+  });
 }
 
 export function addScore(userId: string, value: number, date: string): ScoreEntry[] {
@@ -296,12 +304,13 @@ export function addScore(userId: string, value: number, date: string): ScoreEntr
     createdAt: nowIso(),
   });
 
-  const ordered = getUserScores(userId);
-  const keep = ordered.slice(0, 5);
-  const removeIds = new Set(ordered.slice(5).map((entry) => entry.id));
+  const userScoresBySubmission = db.scores
+    .filter((entry) => entry.userId === userId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const removeIds = new Set(userScoresBySubmission.slice(5).map((entry) => entry.id));
   db.scores = db.scores.filter((entry) => !removeIds.has(entry.id));
 
-  return keep;
+  return getUserScores(userId);
 }
 
 export function editScore(userId: string, scoreId: string, value: number, date: string): ScoreEntry[] {

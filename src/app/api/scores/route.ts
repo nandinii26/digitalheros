@@ -30,7 +30,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = createSchema.parse(await parseJson(request));
-    return ok({ scores: addScore(session.id, body.value, body.date) }, 201);
+    const before = getUserScores(session.id);
+    const scores = addScore(session.id, body.value, body.date);
+    return ok(
+      {
+        scores,
+        replacedOldest: before.length === 5,
+        maxScores: 5,
+      },
+      201,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request";
     return badRequest(message);
